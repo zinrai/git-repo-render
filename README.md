@@ -11,7 +11,7 @@
 
 ## Installation
 
-To install `git-repo-render`, you need to have Go installed on your system. Then, follow these steps:
+To install `git-repo-render`, you need to have Go installed on your system.
 
 ```
 $ go build
