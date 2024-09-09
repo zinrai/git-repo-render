@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -72,14 +73,38 @@ func exploreDirectory(dirPath, indent string, isRoot bool, relPath string) (stri
 				structure.WriteString(fmt.Sprintf("%s├── %s\n", indent, entry.Name()))
 			}
 
-			// Add file content
-			fileContent, err := os.ReadFile(path)
-			if err != nil {
-				return "", "", err
+			// Check if the file is binary
+			if isBinary(path) {
+				files.WriteString(fmt.Sprintf("\n// %s\n(Binary file)\n", currentRelPath))
+			} else {
+				// Add file content for non-binary files
+				fileContent, err := os.ReadFile(path)
+				if err != nil {
+					return "", "", err
+				}
+				files.WriteString(fmt.Sprintf("\n// %s\n%s\n", currentRelPath, string(fileContent)))
 			}
-			files.WriteString(fmt.Sprintf("\n// %s\n%s\n", currentRelPath, string(fileContent)))
 		}
 	}
 
 	return structure.String(), files.String(), nil
+}
+
+func isBinary(filePath string) bool {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+
+	// Read the first 512 bytes
+	buffer := make([]byte, 512)
+	n, err := file.Read(buffer)
+	if err != nil {
+		return false
+	}
+
+	// Use the DetectContentType function to determine if it's binary
+	contentType := http.DetectContentType(buffer[:n])
+	return !strings.HasPrefix(contentType, "text/") && contentType != "application/json"
 }
