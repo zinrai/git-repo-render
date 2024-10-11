@@ -20,15 +20,11 @@ func main() {
 		outputFile = os.Args[2]
 	}
 
-	structure, files, err := exploreDirectory(dirPath, "", true, "")
-	if err != nil {
-		fmt.Printf("Error exploring directory: %v\n", err)
-		os.Exit(1)
-	}
+	structure, files := exploreDirectory(dirPath, "", true, "")
 
 	content := structure + "\n" + files
 
-	err = os.WriteFile(outputFile, []byte(content), 0644)
+	err := os.WriteFile(outputFile, []byte(content), 0644)
 	if err != nil {
 		fmt.Printf("Error writing to file: %v\n", err)
 		os.Exit(1)
@@ -37,10 +33,11 @@ func main() {
 	fmt.Printf("Directory structure and file contents have been written to %s\n", outputFile)
 }
 
-func exploreDirectory(dirPath, indent string, isRoot bool, relPath string) (string, string, error) {
+func exploreDirectory(dirPath, indent string, isRoot bool, relPath string) (string, string) {
 	entries, err := os.ReadDir(dirPath)
 	if err != nil {
-		return "", "", err
+		fmt.Printf("Error reading directory %s: %v\n", dirPath, err)
+		return "", ""
 	}
 
 	var structure strings.Builder
@@ -60,10 +57,7 @@ func exploreDirectory(dirPath, indent string, isRoot bool, relPath string) (stri
 		currentRelPath := filepath.Join(relPath, entry.Name())
 
 		if entry.IsDir() {
-			subStructure, subFiles, err := exploreDirectory(path, indent, false, currentRelPath)
-			if err != nil {
-				return "", "", err
-			}
+			subStructure, subFiles := exploreDirectory(path, indent, false, currentRelPath)
 			structure.WriteString(subStructure)
 			files.WriteString(subFiles)
 		} else {
@@ -80,14 +74,16 @@ func exploreDirectory(dirPath, indent string, isRoot bool, relPath string) (stri
 				// Add file content for non-binary files
 				fileContent, err := os.ReadFile(path)
 				if err != nil {
-					return "", "", err
+					fmt.Printf("Error reading file %s: %v\n", path, err)
+					files.WriteString(fmt.Sprintf("\n// %s\n(Error reading file)\n", currentRelPath))
+				} else {
+					files.WriteString(fmt.Sprintf("\n// %s\n%s\n", currentRelPath, string(fileContent)))
 				}
-				files.WriteString(fmt.Sprintf("\n// %s\n%s\n", currentRelPath, string(fileContent)))
 			}
 		}
 	}
 
-	return structure.String(), files.String(), nil
+	return structure.String(), files.String()
 }
 
 func isBinary(filePath string) bool {
