@@ -20,8 +20,12 @@ func main() {
 		outputFile = os.Args[2]
 	}
 
-	structure, files := exploreDirectory(dirPath, "", true, "")
+	if _, err := os.Stat(outputFile); err == nil {
+		fmt.Printf("Error: %s already exists in the current directory\n", outputFile)
+		os.Exit(1)
+	}
 
+	structure, files := exploreDirectory(dirPath, "", true, "")
 	content := structure + "\n" + files
 
 	err := os.WriteFile(outputFile, []byte(content), 0644)
