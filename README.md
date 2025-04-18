@@ -6,8 +6,9 @@
 
 - Displays the directory structure of a Git repository
 - Shows the content of each file
-- Ignores the `.git` directory to focus on the actual project files
+- Ignores specified directories and files (by default, the `.git` directory)
 - Outputs the result to a file for easy viewing and sharing
+- Supports customizable exclusion patterns for skipping unwanted files and directories
 
 ## Installation
 
@@ -22,19 +23,41 @@ $ go build
 To use `git-repo-render`, run the following command:
 
 ```
-$ git-repo-render <repository_path> [output_file]
+$ git-repo-render [options]
 ```
 
-- `<repository_path>`: The path to the Git repository you want to render
-- `[output_file]`: (Optional) The name of the file to write the output to. If not specified, it defaults to "output.txt"
+### Options
 
-Example:
+- `-repos <repository_path>`: The path to the Git repository you want to render (defaults to current directory)
+- `-out <output_file>`: The name of the file to write the output to (defaults to "output.txt")
+- `-exclude <exclude_paths>`: Comma-separated list of paths to exclude (defaults to ".git")
+- `-h`: Display help information
+
+### Examples
+
+Render the current directory:
 
 ```
-$ git-repo-render /path/to/your/repo my_repo_structure.txt
+$ git-repo-render
 ```
 
-This will create a file named `my_repo_structure.txt` containing the structure and contents of the repository.
+Render a specific repository:
+
+```
+$ git-repo-render -repos /path/to/your/repo
+```
+
+Specify a custom output file:
+
+```
+$ git-repo-render -repos /path/to/your/repo -out my_repo_structure.txt
+```
+
+Exclude multiple directories:
+
+```
+$ git-repo-render -repos /path/to/your/repo -exclude .git,node_modules,vendor
+```
 
 ## Output Format
 

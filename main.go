@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -9,35 +10,100 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: git-repo-render <repository_path> [output_file]")
+	reposPath := flag.String("repos", ".", "Path to the Git repository (defaults to current directory)")
+	outputFile := flag.String("out", "output.txt", "Output file name")
+	excludePaths := flag.String("exclude", ".git", "Comma-separated list of paths to exclude")
+
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -repos <repository_path> [-out output_file] [-exclude exclude_paths]\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Options:\n")
+		flag.PrintDefaults()
+		fmt.Fprintf(os.Stderr, "\nExamples:\n")
+		fmt.Fprintf(os.Stderr, "  %s -repos /path/to/repo\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -repos /path/to/repo -out my_output.txt\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -repos /path/to/repo -exclude .git,node_modules,vendor\n", os.Args[0])
+	}
+
+	flag.Parse()
+
+	if _, err := os.Stat(*outputFile); err == nil {
+		fmt.Printf("Error: %s already exists in the current directory\n", *outputFile)
 		os.Exit(1)
 	}
 
-	dirPath := os.Args[1]
-	outputFile := "output.txt"
-	if len(os.Args) > 2 {
-		outputFile = os.Args[2]
+	excludeList := strings.Split(*excludePaths, ",")
+	for i, exclude := range excludeList {
+		excludeList[i] = strings.TrimSpace(exclude)
 	}
 
-	if _, err := os.Stat(outputFile); err == nil {
-		fmt.Printf("Error: %s already exists in the current directory\n", outputFile)
-		os.Exit(1)
-	}
-
-	structure, files := exploreDirectory(dirPath, "", true, "")
+	structure, files := exploreDirectory(*reposPath, "", true, "", excludeList)
 	content := structure + "\n" + files
 
-	err := os.WriteFile(outputFile, []byte(content), 0644)
+	err := os.WriteFile(*outputFile, []byte(content), 0644)
 	if err != nil {
 		fmt.Printf("Error writing to file: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Directory structure and file contents have been written to %s\n", outputFile)
+	fmt.Printf("Directory structure and file contents have been written to %s\n", *outputFile)
 }
 
-func exploreDirectory(dirPath, indent string, isRoot bool, relPath string) (string, string) {
+// Determine whether a path should be excluded based on the exclude list
+func shouldExclude(path string, excludeList []string) bool {
+	for _, exclude := range excludeList {
+		if exclude == "" {
+			continue
+		}
+
+		// Check if filename or directory name matches the exclude list
+		if filepath.Base(path) == exclude {
+			return true
+		}
+
+		// Check if any part of the path matches the exclude list
+		if strings.Contains(path, exclude) {
+			return true
+		}
+	}
+	return false
+}
+
+// Process a file and return its formatted content
+func processFile(filePath, relPath string) string {
+	var fileOutput strings.Builder
+
+	fileOutput.WriteString(fmt.Sprintf("\n// %s\n", relPath))
+
+	// Check if the file is binary
+	if isBinary(filePath) {
+		fileOutput.WriteString("(Binary file)\n")
+		return fileOutput.String()
+	}
+
+	// Add file content for non-binary files
+	fileContent, err := os.ReadFile(filePath)
+	if err != nil {
+		fmt.Printf("Error reading file %s: %v\n", filePath, err)
+		fileOutput.WriteString("(Error reading file)\n")
+		return fileOutput.String()
+	}
+
+	fileOutput.WriteString(string(fileContent))
+	fileOutput.WriteString("\n")
+
+	return fileOutput.String()
+}
+
+// Add a file entry to the directory structure
+func addFileToStructure(indent string, fileName string, isLast bool) string {
+	if isLast {
+		return fmt.Sprintf("%s└── %s\n", indent, fileName)
+	}
+	return fmt.Sprintf("%s├── %s\n", indent, fileName)
+}
+
+func exploreDirectory(dirPath, indent string, isRoot bool, relPath string, excludeList []string) (string, string) {
 	entries, err := os.ReadDir(dirPath)
 	if err != nil {
 		fmt.Printf("Error reading directory %s: %v\n", dirPath, err)
@@ -52,38 +118,30 @@ func exploreDirectory(dirPath, indent string, isRoot bool, relPath string) (stri
 		indent += "│   "
 	}
 
-	for i, entry := range entries {
-		if entry.Name() == ".git" {
-			continue // Skip .git directory
+	// Filter entries to only those not excluded
+	var filteredEntries []os.DirEntry
+	for _, entry := range entries {
+		currentRelPath := filepath.Join(relPath, entry.Name())
+		if !shouldExclude(currentRelPath, excludeList) {
+			filteredEntries = append(filteredEntries, entry)
 		}
+	}
 
+	// Process each entry
+	for i, entry := range filteredEntries {
 		path := filepath.Join(dirPath, entry.Name())
 		currentRelPath := filepath.Join(relPath, entry.Name())
+		isLast := i == len(filteredEntries)-1
 
 		if entry.IsDir() {
-			subStructure, subFiles := exploreDirectory(path, indent, false, currentRelPath)
+			// Handle directory
+			subStructure, subFiles := exploreDirectory(path, indent, false, currentRelPath, excludeList)
 			structure.WriteString(subStructure)
 			files.WriteString(subFiles)
 		} else {
-			if i == len(entries)-1 {
-				structure.WriteString(fmt.Sprintf("%s└── %s\n", indent, entry.Name()))
-			} else {
-				structure.WriteString(fmt.Sprintf("%s├── %s\n", indent, entry.Name()))
-			}
-
-			// Check if the file is binary
-			if isBinary(path) {
-				files.WriteString(fmt.Sprintf("\n// %s\n(Binary file)\n", currentRelPath))
-			} else {
-				// Add file content for non-binary files
-				fileContent, err := os.ReadFile(path)
-				if err != nil {
-					fmt.Printf("Error reading file %s: %v\n", path, err)
-					files.WriteString(fmt.Sprintf("\n// %s\n(Error reading file)\n", currentRelPath))
-				} else {
-					files.WriteString(fmt.Sprintf("\n// %s\n%s\n", currentRelPath, string(fileContent)))
-				}
-			}
+			// Handle file
+			structure.WriteString(addFileToStructure(indent, entry.Name(), isLast))
+			files.WriteString(processFile(path, currentRelPath))
 		}
 	}
 
