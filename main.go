@@ -60,11 +60,6 @@ func shouldExclude(path string, excludeList []string) bool {
 		if filepath.Base(path) == exclude {
 			return true
 		}
-
-		// Check if any part of the path matches the exclude list
-		if strings.Contains(path, exclude) {
-			return true
-		}
 	}
 	return false
 }
