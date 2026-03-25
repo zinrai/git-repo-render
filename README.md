@@ -10,14 +10,6 @@
 - Outputs the result to a file for easy viewing and sharing
 - Supports customizable exclusion patterns for skipping unwanted files and directories
 
-## Installation
-
-To install `git-repo-render`, you need to have Go installed on your system.
-
-```
-$ go build
-```
-
 ## Usage
 
 To use `git-repo-render`, run the following command:
