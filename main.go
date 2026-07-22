@@ -10,6 +10,7 @@ func main() {
 	reposPath := flag.String("repos", ".", "Path to the Git repository (defaults to current directory)")
 	outputFile := flag.String("out", "output.txt", "Output file name")
 	excludePaths := flag.String("exclude", ".git", "Comma-separated list of paths to exclude")
+	showVersion := flag.Bool("version", false, "Print version information and exit")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
@@ -23,6 +24,11 @@ func main() {
 	}
 
 	flag.Parse()
+
+	if *showVersion {
+		printVersion()
+		os.Exit(0)
+	}
 
 	if _, err := os.Stat(*outputFile); err == nil {
 		fmt.Printf("Error: %s already exists in the current directory\n", *outputFile)
